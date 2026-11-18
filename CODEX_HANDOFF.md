@@ -225,3 +225,52 @@ commit identities from origin/obs-target; do not force-push it, reset history or
 merge duplicate histories. Continue from a fresh clone for later remote work.
 The source content is the same and can be built from either checkout. No executable
 was produced. Main remained bf374311579bd8148adbe78bef99f8cd2f4df89f.
+
+
+## Cloud packaging continuation (2026-11-18, current checkpoint)
+User clarified the deliverable is a complete portable Windows ZIP built and
+packaged in the cloud, not developer setup commands. Read
+`docs/OBS_PACKAGE_BUILD.md` for the complete audit, dependency table, results,
+pinned sources and resumable scratch paths. This section supersedes the old
+recommendation to ask the user to perform the Windows build themselves.
+
+- Fresh checkout: `/workspace/scratch/27301ec1376f/obs-package`, obs-target
+  tracking origin/obs-target, starting at a101fd5. No source code changes.
+- Downloaded upstream v0.7.0 ZIP (355,778,868 bytes); whole SHA-256 matched
+  e788f7a199f0d51cf83b67c3caffd7e3fd0ff0b8ef33ec1d8f78877cb347ed6c.
+  Normalized Windows backslash member names; all 49 checksum-listed members and
+  all 49 embedded manifest entries matched. Actual runtime layout inspected.
+- The original release contains the five third-party runtime files needed for
+  packaging, but no development SDKs, loose shaders, user config or VC runtime
+  redistributable DLLs. Both upstream EXEs import MSVCP140/VCRUNTIME140(_1).
+  Build tools belong in the cloud; don't ask user to install developer SDKs.
+- Reuse of the exact compatible runtime bytes is technically plausible. Upstream
+  notices explicitly flag the Ada-patched NVIDIA runtime's redistribution rights;
+  do not treat a checksum/upstream inclusion as a license grant or publish it.
+- Native host has no Windows compiler/SDK, Wine or KVM. Instead of stopping at
+  Linux, investigated xwin + clang-cl cross-compilation, including C++/WinRT.
+- **Exact current blocker:** xwin 0.10.0 printed
+  `Do you accept the license at https://go.microsoft.com/fwlink/?LinkId=2086102 (yes | no)?`
+  and exited on EOF. No license accepted, no bypass flag used. User explicitly
+  directed stopping at license acceptance requiring their action.
+- **Smallest user action:** review the linked Microsoft terms and authorize
+  accepting them for this cloud build. No local development installation needed.
+- **Exact next step after consent:** run the documented xwin command with
+  --accept-license; install/extract cloud clang-cl/lld and Linux DXC; resolve
+  compatible NVIDIA build-only headers/libs; attempt SDK-enabled x64 Release
+  cross-compilation. This toolchain route is not yet verified and may reveal
+  another concrete blocker; do not promise compilation success in advance.
+- Full NVIDIA Optical Flow download is developer-program gated. A public
+  NVIDIA-MIT-header copy is a lead only, not yet used/validated. No NVIDIA SDK
+  acceptance/download is being silently claimed.
+- Tests rerun: 32 Python tests passed; nine translation tables passed; actual
+  portable identity rule rebuilt against pinned Catch2, 9 assertions passed.
+  Upstream EXEs passed import invariant checks, reference files only.
+- Windows Release build, Windows C++ unit/config tests, GPU tests and OBS/WoW
+  capture remain NOT RUN. No modified EXE or downloadable test ZIP produced.
+- No GitHub automation operated, no PR/tag/release created, no merge/main edits.
+  Only package-audit documentation and this handoff are committed on obs-target.
+
+After consent, continue toward the finished ZIP. Keep documentation clear about
+implemented vs compiled vs verified, and about original reference binaries vs
+new OBS binaries. Do not send the user an upstream/source ZIP as a modified build.
