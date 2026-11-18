@@ -4,16 +4,6 @@
 #include <iterator>
 
 namespace sidecar {
-bool ObsProjectorMatches(std::wstring_view executable, std::wstring_view title) {
-  const auto slash = executable.find_last_of(L"/\\");
-  const std::wstring basename(executable.substr(slash == executable.npos ? 0 : slash + 1));
-  if (_wcsicmp(basename.c_str(), L"obs64.exe") != 0 &&
-      _wcsicmp(basename.c_str(), L"obs32.exe") != 0) return false;
-  return title.starts_with(L"Projector - ") ||
-         title.starts_with(L"Windowed Projector (") ||
-         title.starts_with(L"Fullscreen Projector (");
-}
-
 std::optional<ObsProjector> ValidateObsProjector(HWND hwnd, DWORD expectedPid) {
   if (!hwnd || !IsWindow(hwnd) || !IsWindowVisible(hwnd) || IsIconic(hwnd) ||
       GetAncestor(hwnd, GA_ROOT) != hwnd) return std::nullopt;

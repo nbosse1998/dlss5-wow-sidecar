@@ -1,4 +1,5 @@
 add_executable(sidecar_tests
+  test_obs_projector_identity.cpp
   test_obs_projector.cpp
   test_smoke.cpp
   test_pattern.cpp

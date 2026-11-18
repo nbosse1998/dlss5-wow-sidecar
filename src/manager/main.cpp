@@ -489,9 +489,9 @@ struct LiveState {
   std::optional<SidecarStatus> status;
 };
 
-LiveState PollLiveState() {
+LiveState PollLiveState(bool inspectWow) {
   LiveState live;
-  if (auto wow = FindWowWindow()) {
+  if (auto wow = inspectWow ? FindWowWindow() : std::optional<TargetWindow>{}) {
     live.wowRunning = true;
     live.wowBorderless = wow->borderless;
     live.wowClient = wow->client;
@@ -981,7 +981,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
       continue;
     }
 
-    const LiveState live = PollLiveState();
+    const LiveState live = PollLiveState(!config.obsProjector);
     const bool blocked = AnyBlockingFailure(results);
     const bool obsReady = config.obsProjector && ValidateObsProjector(obsWindow, obsPid).has_value();
     const bool targetReady = config.obsProjector ? obsReady : live.wowRunning;

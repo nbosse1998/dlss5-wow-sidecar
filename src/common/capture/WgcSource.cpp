@@ -11,6 +11,7 @@
 #include <wrl/client.h>
 
 #include "gpu/DeviceBridge.h"
+#include "core/Log.h"
 
 using Microsoft::WRL::ComPtr;
 namespace wgc = winrt::Windows::Graphics::Capture;
@@ -91,6 +92,7 @@ std::unique_ptr<WgcSource> WgcSource::CreateForWindow(HWND target,
   Impl* impl = s->impl_.get();
   impl->frameToken = impl->pool.FrameArrived(
       [impl](const wgc::Direct3D11CaptureFramePool& pool, auto&&) {
+        if (impl->owner->closed_.load(std::memory_order_acquire)) return;
         auto frame = pool.TryGetNextFrame();
         if (!frame) return;
         impl->owner->lastFrameTick_.store(GetTickCount64(), std::memory_order_relaxed);
@@ -114,6 +116,7 @@ std::unique_ptr<WgcSource> WgcSource::CreateForWindow(HWND target,
               client.bottom != static_cast<LONG>(impl->height) ||
               size.Width != bounds.right - bounds.left ||
               size.Height != bounds.bottom - bounds.top) {
+            GlobalLog().Warn("OBS projector geometry changed or is unavailable; restart capture after restoring it");
             impl->owner->closed_.store(true, std::memory_order_release);
             return;
           }
@@ -122,6 +125,7 @@ std::unique_ptr<WgcSource> WgcSource::CreateForWindow(HWND target,
           if (x < 0 || y < 0 || x + client.right > size.Width ||
               y + client.bottom > size.Height || size.Width > static_cast<LONG>(desc.Width) ||
               size.Height > static_cast<LONG>(desc.Height)) {
+            GlobalLog().Warn("OBS client crop is outside the captured frame; restart or try a fullscreen projector");
             impl->owner->closed_.store(true, std::memory_order_release);
             return;
           }
@@ -134,6 +138,7 @@ std::unique_ptr<WgcSource> WgcSource::CreateForWindow(HWND target,
             desc.MiscFlags = 0;
             if (FAILED(impl->bridge->D3d11()->CreateTexture2D(&desc, nullptr,
                                                            &impl->clientTexture))) {
+              GlobalLog().Warn("could not allocate OBS client-area capture texture");
               impl->owner->closed_.store(true, std::memory_order_release);
               return;
             }
