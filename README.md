@@ -40,6 +40,13 @@ RTX 50 (see [Two DLSS 5 runtimes](#two-dlss-5-runtimes-latest-310916-and-compati
 `wowsidecar-manager.exe`. Don't copy the new files over the old folder: the runtimes
 now live in a `runtimes` folder. [All changes →](CHANGELOG.md)
 
+## OBS projector support (fork branch)
+
+The `obs-target` branch adds explicit OBS Studio projector selection alongside
+WoW. **Implemented, but the Windows build and live capture are not verified yet.**
+See [build instructions, limitations and Windows checklist](docs/OBS_PROJECTOR.md).
+An upstream release download does not contain these fork changes.
+
 ## Get started
 
 1. **[Download the latest release](https://github.com/xilla420/dlss5-wow-sidecar/releases/latest)** and unzip it anywhere *except* your WoW folder.

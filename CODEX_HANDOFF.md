@@ -192,3 +192,12 @@ Push only obs-target; do not open a PR (pull_request triggers CI), operate Actio
 create tags, publish releases or merge. No automation was created or triggered.
 The exact next step remains the Windows build and crop test above. Full manual
 expected behavior and runtime packaging details are in `docs/OBS_PROJECTOR.md`.
+
+## Final session checkpoint
+`5891e41` added portable identity test coverage and final failure-path review.
+README and docs/OBS_PROJECTOR.md are completed and committed with this handoff
+update. Review at session end found no unrelated source changes and no workflow
+changes. No outstanding compiler errors were observed because Windows compilation
+could not begin; the platform configure failure above is the build result.
+Next action: Windows SDK-enabled Release build, unit tests, then windowed OBS
+projector crop at 100%/125% DPI. Do not mark live capture verified until tested.
