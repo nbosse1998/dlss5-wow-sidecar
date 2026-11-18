@@ -236,7 +236,7 @@ std::unique_ptr<Pipeline> Pipeline::Create(const GpuInfo& gpu,
 
   Pipeline* raw = p.get();
   p->dev_.source = WgcSource::CreateForWindow(config.target, *p->dev_.bridge,
-                                              [raw] { raw->stats_.RecordDrop(); });
+                                              [raw] { raw->stats_.RecordDrop(); }, config.captureClientArea);
   if (!p->dev_.source) return nullptr;
 
   DCompOverlay* overlay = p->dev_.overlay.get();

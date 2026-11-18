@@ -13,7 +13,7 @@ class DeviceBridge;
 // Windows Graphics Capture window source. Uses the OS capture API, which reads
 // DWM's redirection surface and injects nothing into the target process.
 //
-// The target must be borderless windowed: exclusive fullscreen has no
+// WoW targets must be borderless windowed: exclusive fullscreen has no
 // redirection surface and yields black frames (spec C1).
 class WgcSource {
  public:
@@ -21,13 +21,14 @@ class WgcSource {
 
   static std::unique_ptr<WgcSource> CreateForWindow(HWND target,
                                                     DeviceBridge& bridge,
-                                                    DropCallback onDrop);
+                                                    DropCallback onDrop,
+                                                    bool clientAreaOnly = false);
   ~WgcSource();
 
   void Start();
   void Stop();
 
-  // True once the target window is gone. The runtime treats this as "WoW
+  // True once the target window is gone (or OBS capture becomes unavailable). The runtime treats this as "WoW
   // exited". WGC's own Closed event is the fast path, but it does not fire
   // when the owning process is terminated outright, so the window itself is
   // also checked. IsWindow is a plain window-state query in the same category
@@ -41,6 +42,8 @@ class WgcSource {
   struct Impl;
   std::unique_ptr<Impl> impl_;
   HWND target_ = nullptr;
+  bool clientAreaOnly_ = false;
+  std::atomic<uint64_t> lastFrameTick_{0};
   std::atomic<bool> closed_{false};
   std::atomic<uint64_t> delivered_{0};
 };

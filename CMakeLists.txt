@@ -88,7 +88,7 @@ compile_compute_shader(UiMaskBlend)
 add_library(sidecar_common STATIC)
 target_include_directories(sidecar_common PUBLIC src/common)
 target_link_libraries(sidecar_common PUBLIC
-  d3d11 d3d12 dxgi dxguid dcomp windowsapp bcrypt version tomlplusplus::tomlplusplus)
+  d3d11 d3d12 dxgi dxguid dcomp dwmapi windowsapp bcrypt version tomlplusplus::tomlplusplus)
 target_sources(sidecar_common PRIVATE
   src/common/core/GpuProfile.cpp
   src/common/core/LatencyStats.cpp
@@ -118,6 +118,7 @@ target_sources(sidecar_common PRIVATE
   src/common/flow/FlowToMotionVec.cpp
   src/common/capture/WgcSource.cpp
   src/common/present/DCompOverlay.cpp
+  src/common/present/ObsProjector.cpp
   src/common/present/WindowTracker.cpp
   src/common/present/Hud.cpp
   src/common/neural/AddonSettings.cpp

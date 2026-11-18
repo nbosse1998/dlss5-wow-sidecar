@@ -33,6 +33,7 @@ class DCompOverlay;
 
 struct PipelineConfig {
   HWND target = nullptr;
+  bool captureClientArea = false;
   bool showOverlay = true;
   bool showHud = true;
   // Pixels per flow vector. Validated to 1, 2 or 4 by Config before it gets

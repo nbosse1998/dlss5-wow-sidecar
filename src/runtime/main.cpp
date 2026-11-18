@@ -1,6 +1,9 @@
 #include <windows.h>
 #include <shellapi.h>   // CommandLineToArgvW; WIN32_LEAN_AND_MEAN drops it
 #include <cstdio>
+#include <cerrno>
+#include <cwchar>
+#include <limits>
 
 #include <filesystem>
 #include <string>
@@ -17,6 +20,7 @@
 #include "neural/NeuralPassFactory.h"
 #include "neural/RuntimeSelect.h"
 #include "present/WindowTracker.h"
+#include "present/ObsProjector.h"
 #include "runtime/Pipeline.h"
 
 namespace fs = std::filesystem;
@@ -71,6 +75,22 @@ void GiveTargetTheForeground(HWND target) {
 Target ResolveTarget(int argc, wchar_t** argv) {
   // An explicit class name still works, so the runtime can be driven against
   // testpattern.exe.
+  if (argc > 1 && wcscmp(argv[1], L"--obs-projector") == 0) {
+    if (argc != 4) return {nullptr, L"Choose an OBS projector in the manager."};
+    wchar_t* end = nullptr;
+    errno = 0;
+    const auto value = wcstoull(argv[2], &end, 10);
+    if (errno || !value || *end || value > (std::numeric_limits<uintptr_t>::max)())
+      return {nullptr, L"Invalid OBS window handle. Select the projector again."};
+    errno = 0;
+    const auto pid = wcstoull(argv[3], &end, 10);
+    if (errno || !pid || *end || pid > (std::numeric_limits<DWORD>::max)())
+      return {nullptr, L"Invalid OBS process ID. Select the projector again."};
+    const auto selected = ValidateObsProjector(reinterpret_cast<HWND>(static_cast<uintptr_t>(value)),
+                                                static_cast<DWORD>(pid));
+    return selected ? Target{selected->hwnd, {}}
+                    : Target{nullptr, L"The selected OBS projector is unavailable. Open or restore it, then select it again in the manager."};
+  }
   if (argc > 1) {
     HWND hwnd = FindWindowW(argv[1], nullptr);
     return hwnd ? Target{hwnd, {}}
@@ -144,19 +164,21 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     return 1;
   }
 
+  std::vector<std::string> warnings;
+  Config config;
+  if (auto loaded = LoadConfig(ExecutableDirectory() / "sidecar.toml", warnings)) config = *loaded;
+  const bool obsTarget = argc > 1 && wcscmp(argv[1], L"--obs-projector") == 0;
+  if (config.obsProjector && argc == 1) {
+    MessageBoxW(nullptr, L"Select an OBS projector and start from wowsidecar-manager.exe.",
+                L"DLSS 5 Sidecar", MB_ICONINFORMATION);
+    return 1;
+  }
   const Target target = ResolveTarget(argc, argv);
+  LocalFree(argv);
   if (!target.hwnd) {
     GlobalLog().Error("no capture target: see the dialog for what to do");
     MessageBoxW(nullptr, target.problem.c_str(), L"DLSS 5 Sidecar", MB_ICONERROR);
     return 1;
-  }
-
-  // An absent config file is normal: every value has a working default, and a
-  // malformed one warns rather than stopping the overlay (Task 15's contract).
-  std::vector<std::string> warnings;
-  Config config;
-  if (auto loaded = LoadConfig(ExecutableDirectory() / "sidecar.toml", warnings)) {
-    config = *loaded;
   }
 
   // The add-on has no API: it reads [RenoDX.DLSS5] out of ReShade.ini once, when
@@ -193,6 +215,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 
   PipelineConfig cfg;
   cfg.target = target.hwnd;
+  cfg.captureClientArea = obsTarget;
   cfg.showOverlay = config.showOverlay;
   cfg.showHud = config.showHud;
   cfg.flowGridSize = config.flowGridSize;
@@ -281,8 +304,29 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
   registerHotkey(kToggleOverlayId, config.hotkeys.toggleOverlay, "toggle overlay");
   registerHotkey(kToggleHudId, config.hotkeys.toggleHud, "toggle HUD");
 
+  // OBS resizing/minimizing is an explicit stop, never a stale opaque image.
+  RECT initialClient{};
+  GetClientRect(target.hwnd, &initialClient);
+  const UINT_PTR targetTimer = obsTarget ? SetTimer(nullptr, 0, 250, nullptr) : 0;
+  if (obsTarget && !targetTimer) {
+    pipeline->Stop();
+    MessageBoxW(nullptr, L"Could not monitor the OBS projector. Restart the sidecar.",
+                L"DLSS 5 Sidecar", MB_ICONERROR);
+    return 1;
+  }
   MSG msg{};
   while (GetMessageW(&msg, nullptr, 0, 0)) {
+    if (obsTarget && msg.message == WM_TIMER && msg.wParam == targetTimer) {
+      RECT current{};
+      if (!IsWindow(target.hwnd) || !IsWindowVisible(target.hwnd) || IsIconic(target.hwnd) ||
+          !GetClientRect(target.hwnd, &current) ||
+          current.right != initialClient.right || current.bottom != initialClient.bottom) {
+        pipeline->Stop();
+        MessageBoxW(nullptr, L"OBS projector closed, minimized, hidden or changed size. Restore it, select it in the manager, then start the overlay again.",
+                    L"DLSS 5 Sidecar", MB_ICONINFORMATION);
+        break;
+      }
+    }
     if (msg.message == WM_HOTKEY && msg.hwnd == nullptr) {
       if (msg.wParam == kToggleOverlayId) {
         pipeline->SetOverlayVisible(!pipeline->OverlayVisible());
@@ -299,7 +343,10 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // would leave the manager reporting a running overlay over a dead render
     // loop. Quitting puts the manager back to "stopped", where Start works.
     if (pipeline->TargetLost()) {
-      GlobalLog().Info("the game closed; shutting down");
+      GlobalLog().Info("capture target unavailable; shutting down");
+      if (obsTarget) MessageBoxW(nullptr,
+          L"OBS capture became unavailable or changed size. Restore or reopen the projector, select it in the manager, and start again.",
+          L"DLSS 5 Sidecar", MB_ICONINFORMATION);
       break;
     }
 
@@ -314,6 +361,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
       break;
     }
   }
+  if (targetTimer) KillTimer(nullptr, targetTimer);
   UnregisterHotKey(nullptr, kToggleOverlayId);
   UnregisterHotKey(nullptr, kToggleHudId);
   pipeline->Stop();

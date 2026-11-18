@@ -105,6 +105,9 @@ struct Config {
   // from the header, at which point it becomes theirs and is written.
   float uiScale = 0.0f;
 
+  // Capture mode persists; live HWND/PID selection never does.
+  bool obsProjector = false;
+
   bool showHud = true;
   bool showOverlay = true;
   uint32_t flowGridSize = 4;

@@ -44,6 +44,7 @@
 #include "manager/Presets.h"
 #include "manager/Theme.h"
 #include "manager/WowInstall.h"
+#include "present/ObsProjector.h"
 #include "neural/AddonSettings.h"
 #include "neural/NgxSession.h"
 #include "neural/RuntimeSelect.h"
@@ -784,7 +785,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
   // outranks the registry on every later launch, and because an empty setting
   // is omitted from the file entirely, "never configured" and "cleared" are the
   // same state on purpose: both mean "guess for me".
-  if (config.wowDir.empty()) {
+  if (!config.obsProjector && config.wowDir.empty()) {
     if (const auto detected = DetectWowFolder()) {
       config.wowDir = Utf8FromPath(*detected);
       GlobalLog().Info("WoW folder detected: " + config.wowDir);
@@ -795,7 +796,15 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
 
   // Always against the folder and client the operator has selected now, so a
   // switch of client re-scans the right install rather than the last one.
+  HWND obsWindow = nullptr;
+  DWORD obsPid = 0;
+  std::vector<ObsProjector> obsWindows = config.obsProjector ? FindObsProjectors() : std::vector<ObsProjector>{};
   const auto runProbes = [&]() {
+    if (config.obsProjector) {
+      return std::vector<ProbeResult>{ProbeGpu(), ProbeDriver(), ProbeWindows(),
+          ProbeRefreshRate(), ProbeNeuralRuntime(sidecarDir, config.neuralRuntime),
+          ProbeReshade(sidecarDir)};
+    }
     return RunAllProbes(sidecarDir, PathFromUtf8(config.ActiveWowDir()), config.client,
                         config.neuralRuntime);
   };
@@ -900,6 +909,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     preferences.language = config.language;
     preferences.advancedMode = config.advancedMode;
     preferences.client = config.client;
+    preferences.obsProjector = config.obsProjector;
     if (SaveConfig(configPath, preferences)) {
       savedConfig = preferences;
       saveFailed = false;
@@ -912,12 +922,23 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
   };
 
   const auto startOverlay = [&]() {
+    std::wstring arguments;
+    if (config.obsProjector) {
+      if (!ValidateObsProjector(obsWindow, obsPid)) {
+        MessageBoxW(hwnd, L"The selected OBS projector is unavailable. Open or restore it and select it again.",
+                    L"DLSS 5 Sidecar", MB_ICONINFORMATION);
+        return;
+      }
+      arguments = L"--obs-projector " + std::to_wstring(reinterpret_cast<uintptr_t>(obsWindow)) +
+                  L" " + std::to_wstring(obsPid);
+    }
     if (dirty && !save()) return;
     // The runtime has to be able to hand the foreground back to the game, and a
     // launched process only inherits that right from the process that owned the
     // foreground -- which, at this instant, is this one.
     AllowSetForegroundWindow(ASFW_ANY);
-    ShellExecuteW(nullptr, L"open", (sidecarDir / "wowsidecar.exe").c_str(), nullptr,
+    ShellExecuteW(nullptr, L"open", (sidecarDir / "wowsidecar.exe").c_str(),
+                  arguments.empty() ? nullptr : arguments.c_str(),
                   sidecarDir.c_str(), SW_SHOWNORMAL);
     GlobalLog().Info("overlay launch requested");
     // And then get out of the way: the overlay is about to cover the screen, and
@@ -962,6 +983,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
 
     const LiveState live = PollLiveState();
     const bool blocked = AnyBlockingFailure(results);
+    const bool obsReady = config.obsProjector && ValidateObsProjector(obsWindow, obsPid).has_value();
+    const bool targetReady = config.obsProjector ? obsReady : live.wowRunning;
     size_t missingComponents = 0;
     for (const auto& component : Components()) {
       if (!component.required) continue;
@@ -976,7 +999,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
       startStopRequested = false;
       if (live.overlayRunning) {
         control::Send(SidecarCommand::Stop);
-      } else if (noticeAcknowledged && !blocked && live.wowRunning) {
+      } else if (noticeAcknowledged && !blocked && targetReady) {
         startOverlay();
       } else {
         GlobalLog().Info("start/stop hotkey ignored: the overlay cannot start yet");
@@ -1093,6 +1116,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     if (g_fonts.caption) ImGui::PopFont();
     ImGui::SetCursorPos(ImVec2(switchX, switchY));
     int clientIndex = config.client == GameClient::Wotlk ? 1 : 0;
+    if (config.obsProjector) ImGui::BeginDisabled();
     if (SegmentedControl("client", clientLabels, clientIcons, 2, clientIndex,
                          ImVec2(switchWidth, switchHeight), g_theme, g_scale)) {
       config.client = clientIndex == 1 ? GameClient::Wotlk : GameClient::Modern;
@@ -1100,6 +1124,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
       savePreferences();
       results = runProbes();
     }
+    if (config.obsProjector) ImGui::EndDisabled();
 
     // The name, in whatever room is left. The tagline is dropped rather than
     // wrapped when the window is too narrow for it: two lines would push it
@@ -1129,7 +1154,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         }
       }
     } else {
-      const bool canStart = !blocked && live.wowRunning;
+      const bool canStart = !blocked && targetReady;
       if (!canStart) ImGui::BeginDisabled();
       if (ThemedPrimaryButton(Tr("Start overlay"), ImVec2(buttonWidth, buttonHeight), g_theme,
                               false, g_scale)) {
@@ -1238,6 +1263,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     const float footerTop = ImGui::GetCursorPosY();
     GoldRule(0.30f, 8.0f);
     if (g_fonts.caption) ImGui::PushFont(g_fonts.caption);
+    if (config.obsProjector) {
+      Dot(obsReady, obsReady ? "OBS projector selected" : "Select an OBS projector");
+      Dot(live.overlayRunning, live.overlayRunning ? "Overlay: running" : "Overlay: stopped");
+    } else {
     Dot(live.wowRunning && live.wowBorderless,
         live.wowRunning ? (live.wowBorderless ? "WoW: borderless" : "WoW: not borderless")
                         : "WoW: not running");
@@ -1247,6 +1276,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
                           live.wowClient == GameClient::Wotlk ? "  \xC2\xB7  3.3.5a" : "");
     } else {
       ImGui::Dummy(ImVec2(0.0f, ImGui::GetTextLineHeight()));
+    }
     }
     if (g_fonts.caption) ImGui::PopFont();
     ImGui::Dummy(ImVec2(0.0f, S(2.0f)));
@@ -1284,6 +1314,49 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     ImGui::BeginChild("content", ImVec2(-kPad, -kPad - kSaveBarHeight - style.ItemSpacing.y),
                       ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened);
     ImGui::PopStyleVar();   // read at Begin; nested cards keep their own
+
+    // Target selection is available on every page, independent of WoW setup.
+    if (live.overlayRunning) ImGui::BeginDisabled();
+    int targetMode = config.obsProjector ? 1 : 0;
+    if (ImGui::Combo("Capture target", &targetMode, "World of Warcraft\0OBS Studio Projector\0")) {
+      config.obsProjector = targetMode == 1;
+      obsWindow = nullptr;
+      obsPid = 0;
+      obsWindows = config.obsProjector ? FindObsProjectors() : std::vector<ObsProjector>{};
+      savePreferences();
+      results = runProbes();
+    }
+    if (config.obsProjector) {
+      if (ImGui::Button("Refresh OBS projectors")) {
+        obsWindows = FindObsProjectors();
+        // Refresh never selects a replacement or silently restores a stale handle.
+        obsWindow = nullptr;
+        obsPid = 0;
+        results = runProbes();
+      }
+      const auto selected = ValidateObsProjector(obsWindow, obsPid);
+      const std::string preview = selected ? Utf8FromWide(selected->title) : "Select a projector...";
+      if (ImGui::BeginCombo("Projector window", preview.c_str())) {
+        for (const auto& window : obsWindows) {
+          const auto& r = window.clientScreen;
+          const std::string label = Utf8FromWide(window.title) + " | PID " +
+              std::to_string(window.pid) + " | HWND " +
+              std::to_string(reinterpret_cast<uintptr_t>(window.hwnd)) + " | " +
+              std::to_string(r.right - r.left) + "x" + std::to_string(r.bottom - r.top) +
+              " @ " + std::to_string(r.left) + "," + std::to_string(r.top);
+          if (ImGui::Selectable(label.c_str(), window.hwnd == obsWindow && window.pid == obsPid)) {
+            obsWindow = window.hwnd;
+            obsPid = window.pid;
+          }
+        }
+        ImGui::EndCombo();
+      }
+      ImGui::TextWrapped("Open an OBS Windowed or Fullscreen Projector, refresh, then select it. "
+          "No projectors listed? Start OBS, open a projector, and use English OBS interface titles. "
+          "After closing, minimizing, resizing or restarting OBS, restore/select the projector and start again.");
+    }
+    if (live.overlayRunning) ImGui::EndDisabled();
+    ImGui::Separator();
 
     // ---------------------------------------------------------------- sections
     const Section drawnSection = section;
@@ -1324,7 +1397,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         SectionHeading("Ready to play");
         const bool filesReady = missingComponents == 0;
         const bool checksReady = !blocked;
-        const bool gameReady = live.wowRunning && live.wowBorderless;
+        const bool gameReady = config.obsProjector ? obsReady : live.wowRunning && live.wowBorderless;
         struct Step {
           bool done;
           const char* text;
@@ -1335,7 +1408,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
             {filesReady, "Install the required files", Section::Setup, true},
             {checksReady, "Pass the system checks", Section::Checks, true},
             {gameReady,
-             wotlk ? "Start WoW 3.3.5a with Windowed Mode and Maximized ticked"
+             config.obsProjector ? "Open and select an OBS projector above" : wotlk ? "Start WoW 3.3.5a with Windowed Mode and Maximized ticked"
                    : "Start WoW in borderless windowed mode",
              Section::Setup, !gameReady},
             {false, "Press Start overlay.", Section::Status, false},
@@ -1655,6 +1728,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
 
     if (drawnSection == Section::Setup) {
       const bool wotlk = config.client == GameClient::Wotlk;
+      if (!config.obsProjector) {
       SectionHeading(wotlk ? "Your game: 3.3.5a Wrath" : "Your game: Retail & Classic");
 
       // The folder. Used for two things only: scanning its file names for
@@ -1739,6 +1813,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
       ImGui::EndChild();
       ImGui::Dummy(ImVec2(0.0f, S(10.0f)));
 
+      }  // WoW-only folder and setup instructions
       SectionHeading("Required files");
       Hint("Three files have to sit next to the sidecar. None of them is ours "
            "to redistribute and nothing here downloads anything -- neither "

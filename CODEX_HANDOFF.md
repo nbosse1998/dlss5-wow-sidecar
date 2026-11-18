@@ -70,3 +70,17 @@ SDK-enabled build and approved runtime hashes. See docs/VERIFYING.md.
 ## Next step
 Implement OBS discovery, selection, runtime validation, defensive size handling,
 and targeted unit tests; then update this handoff with results and manual procedure.
+
+## Implementation checkpoint
+Implemented source changes (not Windows-compiled): shared ObsProjector helper,
+manager target mode/picker, persisted obs_projector boolean, explicit runtime
+HWND/PID revalidation, OBS-only WGC client-area crop, stop/restart on geometry
+changes/minimize/hidden/lost target, and five-second no-frame timeout. WoW's WGC
+path defaults unchanged. No renderer/model algorithms changed.
+OBS process is opened only with PROCESS_QUERY_LIMITED_INFORMATION after title
+filtering; this meets spec I2. New source requires dwmapi for client crop.
+New Catch2 tests cover identity matching, default behavior, config persistence
+and malformed mode type. They require Windows to execute.
+Python unittest discovery was attempted incorrectly: files use pytest, which
+was initially missing. Translation checker passed all nine tables. Installing
+pytest/CMake locally for correct test invocation/configure attempt is in progress.

@@ -17,8 +17,8 @@ namespace {
 
 // Every key the document may contain. Anything else earns a warning so a
 // typo is visible rather than silently ignored.
-constexpr std::array<std::string_view, 21> kKnownKeys = {
-    "neural_runtime",
+constexpr std::array<std::string_view, 22> kKnownKeys = {
+    "obs_projector", "neural_runtime",
     "show_hud",     "show_overlay",   "flow_grid_size", "neural_pass",
     "dlss_preset",  "synthetic_depth", "ui_mask",       "ui_mask_feather",
     "neural",       "wow_dir",       "language",      "ui_scale",
@@ -219,6 +219,8 @@ Config ParseConfig(std::string_view text, std::vector<std::string>& warnings) {
     }
   }
 
+  ReadBool(root, "obs_projector", config.obsProjector, warnings);
+
   // Not checked for existence here. A folder that has gone away is something to
   // report on the checks board, where it can be re-pointed, rather than a
   // reason to drop the setting on load and make the operator find it again.
@@ -381,6 +383,7 @@ std::string SerializeConfig(const Config& config) {
   out << "ui_mask_feather = " << config.uiMaskFeather << "\n";
   // Omitted entirely when unset, so an untouched install does not carry a key
   // that reads as "configured to nothing".
+  if (config.obsProjector) out << "obs_projector = true\n";
   if (!config.wowDir.empty()) {
     out << "wow_dir = " << TomlString(config.wowDir) << "\n";
   }
