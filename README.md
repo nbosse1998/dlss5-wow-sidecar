@@ -43,7 +43,7 @@ now live in a `runtimes` folder. [All changes →](CHANGELOG.md)
 ## OBS projector support (fork branch)
 
 The `obs-target` branch adds explicit OBS Studio projector selection alongside
-WoW. **Implemented, but the Windows build and live capture are not verified yet.**
+WoW. **Windows x64 Release cross-build compiled; live OBS/WoW capture is not yet verified.**
 See [build instructions, limitations and Windows checklist](docs/OBS_PROJECTOR.md).
 An upstream release download does not contain these fork changes.
 

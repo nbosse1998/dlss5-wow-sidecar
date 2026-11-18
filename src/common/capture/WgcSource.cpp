@@ -1,5 +1,6 @@
 #include "capture/WgcSource.h"
 
+#include <unknwn.h>  // Classic COM GUID support must precede C++/WinRT.
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.h>

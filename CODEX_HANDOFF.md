@@ -274,3 +274,30 @@ recommendation to ask the user to perform the Windows build themselves.
 After consent, continue toward the finished ZIP. Keep documentation clear about
 implemented vs compiled vs verified, and about original reference binaries vs
 new OBS binaries. Do not send the user an upstream/source ZIP as a modified build.
+
+
+## SDK-enabled Release build checkpoint (supersedes prior license gate)
+The user explicitly accepted the Microsoft terms for this cloud build. xwin
+completed successfully; Microsoft CRT/SDK, clang-cl/lld 19.1.7, official Linux DXC,
+pinned DLSS SDK and MIT-permitted Optical Flow 5.0 headers were acquired in cloud.
+Both product EXEs, every Windows test source and all CMake targets compiled and
+linked successfully in x64 Release with SIDECAR_REQUIRE_SDKS=ON, NGX=1 and NVOF=1.
+Final product EXEs have embedded asInvoker manifests and pass import invariants.
+
+Useful changes: one classic COM include-order fix in WgcSource.cpp; optional
+cmake/toolchains/clang-cl-xwin.cmake; portable cross-build packager
+ tools/package_obs_portable.py. No rendering/model or target-selection algorithm
+changed, normal MSVC/WoW/OBS paths preserved. See docs/OBS_PACKAGE_BUILD.md for
+pinned tool/header hashes, every build failure/fix and exact cloud commands.
+
+Current test results: 32 Python tests passed; all nine translation tables passed;
+Windows test executable compiled. Wine 10.0 startup aborts before Catch2 or even
+cmd can start, so Windows unit tests were ATTEMPTED but NOT EXECUTED. GPU/OBS/WoW
+capture and neural filtering remain NOT VERIFIED. This is a compiled test build,
+not a claim that the feature is proven working. No GPU exposed on cloud host.
+
+Packaging next: run tools/package_obs_portable.py on a clean committed tree,
+replace both EXEs in the hash-verified original runtime layout, add official
+app-local MSVC minimum runtime DLLs and license notices, regenerate provenance
+and checksums, audit dependency closure and save a private downloadable ZIP.
+No user developer SDK installation is needed. Do not publish a GitHub release.

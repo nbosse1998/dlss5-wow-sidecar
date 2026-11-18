@@ -1,8 +1,9 @@
 # OBS projector target (obs-target branch)
 
-**Status:** implemented; isolated identity rules compiled/tested on Linux.
-The Windows application has NOT been compiled or verified with OBS yet.
-No modified executable is included. Do not treat an upstream release as this build.
+**Status:** Windows x64 Release cross-build compiled with both neural SDK interfaces enabled.
+Live OBS/WoW capture and neural output are NOT yet verified. See
+`OBS_PACKAGE_BUILD.md` for cloud build and portable artifact details.
+Do not treat an upstream release as this fork build.
 
 The manager's **Capture target** control appears above every page. Choose
 **World of Warcraft** for the original behavior or **OBS Studio Projector**.

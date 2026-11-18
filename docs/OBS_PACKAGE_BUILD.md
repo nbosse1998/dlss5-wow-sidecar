@@ -2,6 +2,14 @@
 
 ## Current result
 
+**Updated continuation:** the user explicitly accepted the Microsoft terms.
+The gate documented below is historical and resolved. Both product executables,
+all Windows test sources and the spike/testpattern targets have now compiled and
+linked in SDK-enabled x64 Release. See "Compiled cloud continuation" below.
+Live Windows/OBS/GPU execution remains unverified.
+
+### Previous checkpoint
+
 Source: `nbosse1998/dlss5-wow-sidecar`, branch `obs-target`, baseline
 `a101fd5034b077550fdcda657ae0db638022f58d`. No modified Windows executables or
 ready-to-test ZIP have been produced. The OBS/WoW implementation was not changed.
@@ -169,3 +177,84 @@ source/build documentation in GitHub and save any finished user artifact durably
 
 Actual OBS/WoW capture, neural activity, motion and DPI/resize behavior will still
 require a compatible Windows/NVIDIA/OBS environment; no cloud GPU claims were made.
+
+
+## Compiled cloud continuation
+
+The user explicitly replied: "I accept those terms for this cloud build. Continue".
+Microsoft xwin SDK/CRT download succeeded with the acceptance flag. The private
+cloud toolchain was then assembled without installing developer tools on the user's PC.
+
+- LLVM clang-cl/lld/llvm-rc 19.1.7 from SHA-verified Debian trixie packages.
+- Microsoft CRT 14.44.17.14 and SDK 10.0.26100 through xwin 0.10.0.
+- Complete C++/WinRT headers from Microsoft.Windows.SDK.CPP 10.0.26100.3916
+  NuGet package, SHA256 21dfb5db3397425ee428e0fd54cedc51af52ddd10c82433a7cdb483ecbb284ad.
+  xwin's extracted names lacked some case aliases. Added aliases derived from
+  official projected includes, and used one consistent set of projected headers.
+- Linux DXC 1.9.2609.5 (official Microsoft release), archive SHA256
+  96faadc7f5c282d2ffda49804beb4c3ee38127bc252b723234e3c5cdf7aa39a1.
+- Pinned NVIDIA DLSS SDK v310.7.0, commit a291cc7d2cc642a51566f3dfd5376f635cd1b284.
+- Optical Flow 5.0 Common/D3D12 interface headers with explicit NVIDIA MIT notices,
+  from 2600th/dlss5-video-player commit c6bfdb3b2ecf8003b1d33b51b0da517459fafed0.
+  Their SHA256 values are cdbdbf0797fc02d2de1051520d4164bb1e36b7722009f46cb16216675319436a
+  and f12bbc6c54278cb5d3ae81723ca0363644f672fc3e72b635a709470ffdd6886f.
+  The source compiled with SIDECAR_HAVE_NVOF=1; no zero-flow stub was substituted.
+  Only these headers are needed for compilation; the driver supplies nvofapi64.dll.
+- Official Microsoft VC 14.44.35211 redistributable downloaded from
+  https://aka.ms/vs/17/release/vc_redist.x64.exe (SHA256
+  cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b).
+  AMD64 minimum-runtime DLLs were extracted from its embedded CAB for app-local
+  deployment; keep its license alongside them. Do not bundle the developer SDK.
+
+Required source/build changes:
+
+1. WgcSource.cpp now includes unknwn.h before C++/WinRT. Clang exposed the required
+   classic COM GUID include ordering; no capture/render algorithm was changed.
+2. cmake/toolchains/clang-cl-xwin.cmake adds an opt-in cross-toolchain configuration.
+   The normal upstream Visual Studio build remains untouched.
+3. tools/package_obs_portable.py verifies the upstream manifest, requires a clean
+   SDK-enabled Release tree, replaces both EXEs, adds app-local runtime DLLs,
+   keeps notices, includes optional Windows unit tests and verifies the ZIP hashes.
+
+Failures resolved during compilation:
+
+- Initial compiler probe tried Debug CRT not downloaded by xwin: set probe
+  configuration to Release.
+- CMake default module scan requested absent clang-scan-deps: disable C++ module
+  scanning because this project has no modules.
+- Case-sensitive projected WinRT includes were missing aliases: use the complete
+  Microsoft SDK projection and canonical include aliases.
+- Classic COM GUID static assertions: add unknwn.h before projected headers.
+- Initial manifest-disabled probe was only a bootstrap. Final linked product
+  EXEs contain plain asInvoker/uiAccess=false manifests, confirmed by PE resource
+  inspection. No elevation requested.
+
+Build: ALL CMake targets successfully compiled/linked in Release. Both product
+EXEs and testpattern passed post-link import invariants; all Windows test sources
+compiled into tests/sidecar_tests.exe. Compiler warnings include pre-existing
+aggregate initialization/format-string warnings, NVIDIA SDK signedness warnings,
+and ignored /await:strict under Clang (standard C++20 coroutines are used).
+DXC differs from upstream's build, so byte-identical reproduction is not claimed.
+
+Execution tests: Wine 10.0 installed/extracted in cloud but aborts in its own
+initialization with free()/double-free corruption before even `cmd /c ver` or
+Catch2 can start. Multiple isolated prefixes/loader settings were attempted;
+ptrace diagnostics are disallowed by this host. Therefore Windows unit tests
+were attempted but NOT EXECUTED; this is not a failing assertion in the addon.
+No WGC/OBS/NVIDIA hardware test is possible here (no GPU device exposed).
+The optional `tests/Run unit tests.cmd` in the test bundle runs the compiled unit
+suite on Windows without developer tools or Python.
+
+### Exact cloud build and package commands
+
+The following are maintainer continuation commands, not work for the user:
+```
+export SIDECAR_LLVM_ROOT=/workspace/scratch/27301ec1376f/build-deps/llvm-root/usr/lib/llvm-19
+export SIDECAR_XWIN_ROOT=/workspace/scratch/27301ec1376f/build-deps/winsdk
+python -m cmake -S . -B ../build-obs-cross -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/clang-cl-xwin.cmake -DCMAKE_MAKE_PROGRAM=/home/agent/.local/bin/ninja -DCMAKE_BUILD_TYPE=Release -DSIDECAR_REQUIRE_SDKS=ON -DDLSS_SDK_DIR=../build-deps/sdk-dlss -DNVOF_SDK_DIR=../build-deps/sdk-nvof -DDXC_EXECUTABLE=../build-deps/dxc/bin/dxc -DCMAKE_CATCH_DISCOVER_TESTS_DISCOVERY_MODE=PRE_TEST
+python -m cmake --build ../build-obs-cross --parallel 4
+python tools/package_obs_portable.py --build-dir ../build-obs-cross --runtime-dir ../build-deps/upstream-normalized/dlss5-wow-sidecar --msvc-dir ../build-deps/vcredist-x64-minimum --notices-dir ../build-deps/package-notices --output-dir ../obs-artifacts
+```
+The actual initial build used the equivalent /tmp/obs-cross-toolchain.cmake;
+final linker settings re-enabled normal embedded asInvoker manifests.
+Do not mark live capture/neural output verified merely because compilation passed.
