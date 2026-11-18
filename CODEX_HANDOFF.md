@@ -201,3 +201,27 @@ changes. No outstanding compiler errors were observed because Windows compilatio
 could not begin; the platform configure failure above is the build result.
 Next action: Windows SDK-enabled Release build, unit tests, then windowed OBS
 projector crop at 100%/125% DPI. Do not mark live capture verified until tested.
+
+## Delivery note (authoritative for future sessions)
+Direct `git push -u origin obs-target` failed: this host has no command-line
+GitHub HTTPS credentials (`could not read Username ... No such device or address`).
+The connected GitHub app then created obs-target from the unchanged main baseline
+and published the four logical commits in order. Every published tree SHA was
+checked against its corresponding local tree: exact file content/modes matched.
+No force update or existing remote history rewrite occurred. App-created commit
+metadata produces different commit IDs; local commits were retained unchanged.
+
+| Local unpublished commit | Equivalent commit on your fork |
+| --- | --- |
+| b750d9c | b44af50a47723baee7f0a5f7dbfb3c2606fa2f22 |
+| 975c619 | 3f1831fd3d9869e9cde6c328b50fb63d4c436879 |
+| 5891e41 | 1cc65efd83f60ad3dd6efdc8958c1d079ad973bd |
+| 3de1019 | 50a6aa6d40c92b813d3463521dfa5d0ebf73f7e7 |
+
+This delivery-note update is also committed locally and appended remotely.
+A fresh clone of the fork on obs-target is the simplest continuation. If reusing
+this scratch checkout, its local obs-target has equivalent files but separate
+commit identities from origin/obs-target; do not force-push it, reset history or
+merge duplicate histories. Continue from a fresh clone for later remote work.
+The source content is the same and can be built from either checkout. No executable
+was produced. Main remained bf374311579bd8148adbe78bef99f8cd2f4df89f.
