@@ -1,5 +1,41 @@
 # OBS target handoff
 
+## Latest delivery status — compiled portable package
+
+Branch: `obs-target`. Source build commit: `a715f8f1e9e9479b1498b4961072cc8df54589ae`.
+Artifact: `dlss5-wow-sidecar-v0.7.0-obs-target-win64-a715f8f.zip`.
+Size: 357,825,066 bytes. SHA-256:
+`929d01cc1d2bd0c20e29e2149a527c38516b81eba89b5898ac3aab3202c6135a`.
+Both Windows x64 Release product executables and all Windows test sources compiled
+successfully with neural SDK interfaces enabled. Portable packaging is complete;
+this is a private test bundle, not a published GitHub release. Main is unchanged.
+
+**Verified here:** all build targets, product import/asInvoker checks, 32 Python
+tests, nine translation tables, nine native identity assertions, upstream runtime
+hashes, ZIP CRC plus 73 manifest-listed file hashes, and a 21-PE dependency audit
+with no unresolved non-Windows imports. Both original neural runtime slots and
+12 app-local Microsoft minimum-runtime DLLs are included. No developer SDKs or
+personal settings are in the ZIP. Config is generated on first use as upstream.
+
+**Not verified:** Windows executable launch, full Windows C++ unit test execution,
+OBS/WGC capture, active neural output or WoW runtime regression. Wine itself
+aborts before cmd/Catch2 starts; no GPU exists here. Do not call live features
+verified. English projector titles and stop/reselect on resizing remain limitations.
+
+**Exact next step:** on the user's Windows 11/RTX 4070 Super PC, extract the whole
+ZIP outside WoW/OBS, open an OBS projector, run the manager, select OBS Studio
+Projector, refresh/select/start, and use Ctrl+Alt+D. Inspect sidecar.log for
+optical flow available, DLSS/DLAA feature creation and absence of passthrough/
+initialization failures, plus visible A/B effect; a pass name alone is not proof.
+Then test scene/motion/resize/close cases and switch back to WoW. Optional full
+unit execution needs no developer tools: double-click `tests/Run unit tests.cmd`.
+If a launch/capture issue occurs, collect sidecar.log before relaunching and
+continue on obs-target; no merge or source rewrite is needed.
+
+The older license/build-blocker sections below are historical; the user accepted
+the Microsoft license and the cloud build/package work is now complete. Exact
+cloud reproduction and prior failures are in docs/OBS_PACKAGE_BUILD.md.
+
 ## Objective and state
 Add OBS Studio projector selection while preserving WoW and the shared neural pipeline.
 Branch: `obs-target`; fork: `nbosse1998/dlss5-wow-sidecar`. No merges into main,
@@ -301,3 +337,22 @@ replace both EXEs in the hash-verified original runtime layout, add official
 app-local MSVC minimum runtime DLLs and license notices, regenerate provenance
 and checksums, audit dependency closure and save a private downloadable ZIP.
 No user developer SDK installation is needed. Do not publish a GitHub release.
+
+
+## Final portable package audit
+Packaging command and provenance are in docs/OBS_PACKAGE_BUILD.md. Packager ran
+from clean committed source a715f8f, verified all 49 upstream entries, replaced
+both EXEs and included official app-local VC 14.44.35211 AMD64 minimum runtimes.
+It generated a new BUILD-MANIFEST.json (73 payload file hashes), SHA256SUMS.txt
+and an archive .sha256 sidecar. ZIP CRC and every listed member hash passed.
+Independent PE audit covered 21 AMD64 product/runtime/test images; all imports
+resolved to bundled files or supported Windows system/API-set DLLs. It also
+confirmed no personal TOML/ReShade.ini copied. Original upstream runtime files
+were retained byte-for-byte. Tests are in a separate folder so ReShade is not
+loaded into the test harness inadvertently; its CMD runner adds the root DLL path.
+
+Artifact size/hash/name are in the latest status above. Current code is committed
+on obs-target; final documentation records packaging results separately from the
+source-build commit. No extra source or renderer changes followed packaging.
+No source zip, original unchanged executable, stub-only build or developer setup
+was substituted for the requested modified portable Windows test package.
